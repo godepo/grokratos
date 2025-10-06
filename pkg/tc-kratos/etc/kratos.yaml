@@ -1,0 +1,33 @@
+# kratos.yml
+dsn: memory
+identity:
+  # будет использоваться по умолчанию для всех flows
+  default_schema_id: user
+  schemas:
+    - id: user
+      # также можно указать схему в base64 или указать url до схемы
+      url: file:///etc/config/kratos/user.schema.json
+
+selfservice:
+  default_browser_return_url: http://localhost:4455/
+  methods:
+    totp:
+      enabled: true
+      config:
+        issuer: "YourAppName"
+    password:
+      enabled: true
+
+  flows:
+    login:
+      ui_url: http://localhost:4455/login
+      lifespan: 10m
+
+    settings:
+      ui_url: http://localhost:4455/settings
+      privileged_session_max_age: 15m
+session:
+  lifespan: 24h
+  earliest_possible_extend: 1h
+  whoami:
+    required_aal: highest_available

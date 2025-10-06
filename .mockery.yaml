@@ -1,0 +1,13 @@
+all: True
+dir: ./
+structname: "Mock{{.InterfaceName}}"
+filename: "mock_{{.InterfaceName}}_test.go"
+force-file-write: true
+pkgname: tckratos
+packages:
+  github.com/testcontainers/testcontainers-go:
+    config:
+      all: False
+    interfaces:
+      Container:
+        config:

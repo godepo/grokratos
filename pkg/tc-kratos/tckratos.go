@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -53,7 +56,11 @@ type KratosConfig struct {
 		ctx context.Context,
 		req testcontainers.GenericContainerRequest,
 	) (testcontainers.Container, error)
-	kratosImage string
+	kratosImage              string
+	adminPort                int
+	frontPort                int
+	adminListenerConstructor func(network string, address string) (net.Listener, error)
+	frontListenerConstructor func(network string, address string) (net.Listener, error)
 }
 
 func WithUserSchemaPath(path string) func(*KratosConfig) {
@@ -82,12 +89,28 @@ func WithContainerConstructor(
 	}
 }
 
+func WithAdminListenerConstructor(
+	fn func(network string, address string) (net.Listener, error)) func(*KratosConfig) {
+	return func(c *KratosConfig) {
+		c.adminListenerConstructor = fn
+	}
+}
+
+func WithFrontListenerConstructor(
+	fn func(network string, address string) (net.Listener, error)) func(*KratosConfig) {
+	return func(c *KratosConfig) {
+		c.frontListenerConstructor = fn
+	}
+}
+
 func Run(ctx context.Context, opts ...Option) (*KratosContainer, error) {
 	cfg := KratosConfig{
-		kratosConfig:         "",
-		userSchemaPath:       "",
-		containerConstructor: testcontainers.GenericContainer,
-		kratosImage:          "oryd/kratos:v1.3.1",
+		kratosConfig:             "",
+		userSchemaPath:           "",
+		containerConstructor:     testcontainers.GenericContainer,
+		kratosImage:              "oryd/kratos:v1.3.1",
+		adminListenerConstructor: net.Listen,
+		frontListenerConstructor: net.Listen,
 	}
 
 	for _, fn := range opts {
@@ -98,9 +121,26 @@ func Run(ctx context.Context, opts ...Option) (*KratosContainer, error) {
 		return nil, ErrConfigNotFound
 	}
 
+	adminLn, err := cfg.adminListenerConstructor("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on admin port: %w", err)
+	}
+
+	cfg.adminPort = adminLn.Addr().(*net.TCPAddr).Port
+
+	frontLn, err := cfg.frontListenerConstructor("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen on admin port: %w", err)
+	}
+
+	cfg.frontPort = frontLn.Addr().(*net.TCPAddr).Port
+
 	if cfg.userSchemaPath == "" {
 		return nil, ErrUserSchemaNotFound
 	}
+
+	_ = frontLn.Close()
+	_ = adminLn.Close()
 
 	kratosReq := containerRequest(cfg)
 
@@ -108,29 +148,16 @@ func Run(ctx context.Context, opts ...Option) (*KratosContainer, error) {
 		testcontainers.GenericContainerRequest{
 			ContainerRequest: kratosReq,
 			Started:          true,
-		})
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start kratos: %w", err)
 	}
 
-	// Получаем порты Kratos
-	publicPort, err := kratosContainer.MappedPort(ctx, "4433")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get kratos public port: %w", err)
-	}
+	kratosHost := "localhost"
 
-	adminPort, err := kratosContainer.MappedPort(ctx, "4434")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get kratos admin port: %w", err)
-	}
-
-	kratosHost, err := kratosContainer.Host(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get kratos host: %w", err)
-	}
-
-	publicURL := net.JoinHostPort(kratosHost, publicPort.Port())
-	adminURL := net.JoinHostPort(kratosHost, adminPort.Port())
+	publicURL := net.JoinHostPort(kratosHost, strconv.Itoa(cfg.frontPort))
+	adminURL := net.JoinHostPort(kratosHost, strconv.Itoa(cfg.adminPort))
 
 	return &KratosContainer{
 		KratosContainer: kratosContainer,
@@ -148,8 +175,8 @@ func containerRequest(cfg KratosConfig) testcontainers.ContainerRequest {
 			"LOG_LEVEL":             "trace",
 			"LOG_FORMAT":            "text",
 			"DSN":                   "memory",
-			"SERVE_PUBLIC_BASE_URL": "http://127.0.0.1:4433/",
-			"SERVE_ADMIN_BASE_URL":  "http://127.0.0.1:4434/",
+			"SERVE_PUBLIC_BASE_URL": "http://localhost:" + strconv.Itoa(cfg.frontPort) + "/",
+			"SERVE_ADMIN_BASE_URL":  "http://localhost:" + strconv.Itoa(cfg.adminPort) + "/",
 		},
 		Files: []testcontainers.ContainerFile{
 			{
@@ -163,7 +190,23 @@ func containerRequest(cfg KratosConfig) testcontainers.ContainerRequest {
 				FileMode:          readOnlyRights,
 			},
 		},
-
+		HostConfigModifier: func(hc *container.HostConfig) {
+			adminPort, _ := nat.NewPort("tcp", "4434")
+			hc.PortBindings = nat.PortMap{
+				"4433/tcp": []nat.PortBinding{
+					{
+						HostIP:   "127.0.0.1",
+						HostPort: strconv.Itoa(cfg.frontPort),
+					},
+				},
+				adminPort: []nat.PortBinding{
+					{
+						HostIP:   "127.0.0.1",
+						HostPort: strconv.Itoa(cfg.adminPort),
+					},
+				},
+			}
+		},
 		WaitingFor: wait.ForHTTP("/health/ready").
 			WithPort("4433/tcp").
 			WithStartupTimeout(time.Minute).

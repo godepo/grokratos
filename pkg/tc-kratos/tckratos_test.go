@@ -3,9 +3,9 @@ package tckratos
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
-	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +43,32 @@ func TestStartKratosWithTestContainers(t *testing.T) {
 			require.ErrorIs(t, err, ErrUserSchemaNotFound)
 		})
 
+		t.Run("when cant allocate admin port", func(t *testing.T) {
+			expErr := errors.New(uuid.NewString())
+			_, err := Run(
+				t.Context(),
+				WithKratosConfig("etc/kratos.yaml"),
+				WithUserSchemaPath("etc/user.schema.json"),
+				WithAdminListenerConstructor(func(network string, address string) (net.Listener, error) {
+					return nil, expErr
+				}),
+			)
+			require.ErrorIs(t, err, expErr)
+		})
+
+		t.Run("when cant allocate front port", func(t *testing.T) {
+			expErr := errors.New(uuid.NewString())
+			_, err := Run(
+				t.Context(),
+				WithKratosConfig("etc/kratos.yaml"),
+				WithUserSchemaPath("etc/user.schema.json"),
+				WithFrontListenerConstructor(func(network string, address string) (net.Listener, error) {
+					return nil, expErr
+				}),
+			)
+			require.ErrorIs(t, err, expErr)
+		})
+
 		t.Run("when run container will be failed", func(t *testing.T) {
 			expErr := errors.New(uuid.NewString())
 			_, err := Run(
@@ -59,75 +85,6 @@ func TestStartKratosWithTestContainers(t *testing.T) {
 						return nil, expErr
 					}),
 			)
-			require.ErrorIs(t, err, expErr)
-		})
-
-		t.Run("when container will be failed take public port", func(t *testing.T) {
-			expErr := errors.New(uuid.NewString())
-			mock := NewMockContainer(t)
-			mock.EXPECT().MappedPort(t.Context(), nat.Port("4433")).Return(nat.Port(""), expErr)
-
-			_, err := Run(
-				t.Context(),
-				WithKratosConfig("etc/kratos.yaml"),
-				WithUserSchemaPath("etc/user.schema.json"),
-				WithContainerConstructor(
-					func(
-						ctx context.Context,
-						req testcontainers.GenericContainerRequest,
-					) (testcontainers.Container, error) {
-
-						return mock, nil
-					}),
-			)
-
-			require.ErrorIs(t, err, expErr)
-		})
-
-		t.Run("when container will be failed take admin port", func(t *testing.T) {
-			expErr := errors.New(uuid.NewString())
-			mock := NewMockContainer(t)
-			mock.EXPECT().MappedPort(t.Context(), nat.Port("4433")).Return(nat.Port(""), nil)
-			mock.EXPECT().MappedPort(t.Context(), nat.Port("4434")).Return(nat.Port(""), expErr)
-
-			_, err := Run(
-				t.Context(),
-				WithKratosConfig("etc/kratos.yaml"),
-				WithUserSchemaPath("etc/user.schema.json"),
-				WithContainerConstructor(
-					func(
-						ctx context.Context,
-						req testcontainers.GenericContainerRequest,
-					) (testcontainers.Container, error) {
-
-						return mock, nil
-					}),
-			)
-
-			require.ErrorIs(t, err, expErr)
-		})
-
-		t.Run("when container will be failed take host", func(t *testing.T) {
-			expErr := errors.New(uuid.NewString())
-			mock := NewMockContainer(t)
-			mock.EXPECT().MappedPort(t.Context(), nat.Port("4433")).Return(nat.Port(""), nil)
-			mock.EXPECT().MappedPort(t.Context(), nat.Port("4434")).Return(nat.Port(""), nil)
-			mock.EXPECT().Host(t.Context()).Return("", expErr)
-
-			_, err := Run(
-				t.Context(),
-				WithKratosConfig("etc/kratos.yaml"),
-				WithUserSchemaPath("etc/user.schema.json"),
-				WithContainerConstructor(
-					func(
-						ctx context.Context,
-						req testcontainers.GenericContainerRequest,
-					) (testcontainers.Container, error) {
-
-						return mock, nil
-					}),
-			)
-
 			require.ErrorIs(t, err, expErr)
 		})
 	})

@@ -30,6 +30,7 @@ func (c *Container[T]) Injector(t *testing.T, to T) T {
 
 	cfg := client.NewConfiguration()
 	cfg.Host = c.kratosContainer.AdminConnectionString(c.ctx)
+	cfg.Scheme = "http"
 
 	adminClient := client.NewAPIClient(cfg)
 
@@ -37,6 +38,7 @@ func (c *Container[T]) Injector(t *testing.T, to T) T {
 
 	cfgFront := client.NewConfiguration()
 	cfgFront.Host = c.kratosContainer.PublicConnectionString(c.ctx)
+	cfgFront.Scheme = "http"
 
 	frontClient := client.NewAPIClient(cfg)
 

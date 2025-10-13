@@ -7,7 +7,7 @@ require (
 	github.com/docker/go-connections v0.6.0
 	github.com/godepo/groat v0.0.1
 	github.com/google/uuid v1.6.0
-	github.com/jaswdr/faker/v2 v2.3.0
+	github.com/jaswdr/faker/v2 v2.8.1
 	github.com/ory/kratos-client-go v1.3.8
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.39.0

@@ -3,7 +3,7 @@ module github.com/godepo/grokratos
 go 1.24.3
 
 require (
-	github.com/docker/docker v28.3.3+incompatible
+	github.com/docker/docker v28.5.1+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/godepo/groat v0.0.1
 	github.com/google/uuid v1.6.0
@@ -35,7 +35,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

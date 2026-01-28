@@ -10,6 +10,13 @@ import (
 	tckratos "github.com/godepo/grokratos/pkg/tc-kratos"
 )
 
+func TestNew(t *testing.T) {
+	tc := suite.Case(t)
+	require.NotNil(t, tc)
+	require.NotNil(t, tc.Deps.Admin)
+	require.NotNil(t, tc.Deps.Front)
+}
+
 func TestBootstrapper(t *testing.T) {
 	t.Run("should be able can't run", func(t *testing.T) {
 		t.Run("when is not specified config path", func(t *testing.T) {

@@ -28,10 +28,11 @@ type (
 
 	Container[T any] struct {
 		forks            *atomic.Int32
-		kratosContainer  KratosContainer
 		ctx              context.Context
 		injectLabel      string
 		frontInjectLabel string
+		adminDSN         string
+		publicDSN        string
 	}
 	config struct {
 		containerImage   string
@@ -104,22 +105,28 @@ func New[T any](options ...Option) integration.Bootstrap[T] {
 
 func bootstrapper[T any](cfg config) integration.Bootstrap[T] {
 	return func(ctx context.Context) (integration.Injector[T], error) {
-		kratosContainer, err := cfg.runner(
-			ctx,
-			tckratos.WithKratosConfig(cfg.kratosConfig),
-			tckratos.WithUserSchemaPath(cfg.userSchemaPath),
-			tckratos.WithKratosImage(cfg.containerImage),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("kratos container failed to run: %w", err)
+		adminDSN := os.Getenv("GROAT_I9N_KR_ADMIN_DSN")
+		publicDSN := os.Getenv("GROAT_I9N_KR_PUBLIC_DSN")
+
+		if adminDSN == "" || publicDSN == "" {
+			kratosContainer, err := cfg.runner(
+				ctx,
+				tckratos.WithKratosConfig(cfg.kratosConfig),
+				tckratos.WithUserSchemaPath(cfg.userSchemaPath),
+				tckratos.WithKratosImage(cfg.containerImage),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("kratos container failed to run: %w", err)
+			}
+
+			ctxgroup.IncAt(ctx)
+
+			go containersync.Terminator(ctx, kratosContainer.Terminate)()
+
+			adminDSN = kratosContainer.AdminConnectionString(ctx)
+			publicDSN = kratosContainer.PublicConnectionString(ctx)
 		}
 
-		ctxgroup.IncAt(ctx)
-
-		go containersync.Terminator(ctx, kratosContainer.Terminate)()
-
-		container := newContainer[T](ctx, kratosContainer, cfg)
-
-		return container.Injector, nil
+		return newContainer[T](ctx, cfg, adminDSN, publicDSN).Injector, nil
 	}
 }

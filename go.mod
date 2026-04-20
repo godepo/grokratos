@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.6.0
+	github.com/docker/go-connections v0.7.0
 	github.com/godepo/groat v0.0.1
 	github.com/google/uuid v1.6.0
 	github.com/jaswdr/faker/v2 v2.9.1
